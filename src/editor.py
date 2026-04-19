@@ -3,7 +3,9 @@
 The 'how' is in attention_store.py (the controller that intercepts cross-attn).
 The 'where' is in masks.py (Step 8). This file is just orchestration.
 """
+import numpy as np
 import torch
+import torch.nn.functional as F
 from PIL import Image
 
 from attention_store import (
@@ -48,6 +50,7 @@ class Editor:
         return_mask: bool = False,
         precomputed_mask: torch.Tensor | None = None,
         mask_blend_until_frac: float = 0.7,
+        pixel_composite: bool = True,
     ) -> Image.Image | tuple[Image.Image, torch.Tensor | None]:
         if mask_mode not in ("none", "attention"):
             raise ValueError(f"unknown mask_mode={mask_mode!r}")
@@ -133,7 +136,18 @@ class Editor:
         finally:
             uninstall_controller(self.c.unet)
 
-        img = _to_pil(decode_latents(self.c, z_tgt).clamp(-1, 1))
+        edit_pixels = decode_latents(self.c, z_tgt).clamp(-1, 1)
+
+        if pixel_composite and mask is not None:
+            # True inpainting: outside the mask = exact source pixels.
+            src_arr = np.asarray(image.convert("RGB").resize((512, 512))).astype("float32") / 127.5 - 1.0
+            src_pixels = torch.from_numpy(src_arr).permute(2, 0, 1).unsqueeze(0).to(self.c.device, self.c.dtype)
+            pixel_mask = F.interpolate(
+                mask.float(), size=(512, 512), mode="bilinear", align_corners=False,
+            ).to(self.c.device, self.c.dtype)
+            edit_pixels = pixel_mask * edit_pixels + (1 - pixel_mask) * src_pixels
+
+        img = _to_pil(edit_pixels)
         if return_mask:
             return img, mask
         return img
