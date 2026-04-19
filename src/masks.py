@@ -30,7 +30,7 @@ def derive_attention_mask(
     upsample_to: int = 64,
     threshold_quantile: float = 0.8,
     dilate_pixels: int = 2,
-    soft_blur_sigma: float = 1.5,
+    soft_blur_sigma: float = 0.5,
     batch_size: int = 2,
     use_sample_index: int = 1,
 ) -> torch.Tensor:

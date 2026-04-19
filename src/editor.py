@@ -47,7 +47,7 @@ class Editor:
         tau: float = 0.8,
         return_mask: bool = False,
         precomputed_mask: torch.Tensor | None = None,
-        mask_blend_until_frac: float = 0.9,
+        mask_blend_until_frac: float = 0.7,
     ) -> Image.Image | tuple[Image.Image, torch.Tensor | None]:
         if mask_mode not in ("none", "attention"):
             raise ValueError(f"unknown mask_mode={mask_mode!r}")
