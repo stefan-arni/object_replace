@@ -3,19 +3,21 @@
 The 'how' is in attention_store.py (the controller that intercepts cross-attn).
 The 'where' is in masks.py (Step 8). This file is just orchestration.
 """
-import numpy as np
 import torch
 from PIL import Image
 
 from attention_store import (
     AttentionController,
     P2PReplaceController,
+    ScheduleController,
+    classify_token_roles,
     infer_preserved_token_indices,
     install_controller,
     uninstall_controller,
 )
 from ddim import _alpha_bar
 from inversion import null_text_inversion
+from schedules import ScheduleSet
 from sd_components import SDComponents, decode_latents, encode_prompt
 
 
@@ -34,6 +36,7 @@ class Editor:
         source_prompt: str,
         target_prompt: str,
         *,
+        schedule: ScheduleSet | None = None,
         controller: AttentionController | None = None,
         num_inference_steps: int = 50,
         guidance_scale: float = 7.5,
@@ -55,12 +58,20 @@ class Editor:
         target_cond = encode_prompt(self.c, target_prompt)
 
         if controller is None:
-            preserved = infer_preserved_token_indices(self.c.tokenizer, source_prompt, target_prompt)
-            controller = P2PReplaceController(
-                total_steps=num_inference_steps,
-                preserved_token_indices=preserved,
-                tau=tau,
-            )
+            if schedule is not None:
+                roles = classify_token_roles(self.c.tokenizer, source_prompt, target_prompt)
+                controller = ScheduleController(
+                    schedule_set=schedule,
+                    total_steps=num_inference_steps,
+                    token_roles=roles,
+                )
+            else:
+                preserved = infer_preserved_token_indices(self.c.tokenizer, source_prompt, target_prompt)
+                controller = P2PReplaceController(
+                    total_steps=num_inference_steps,
+                    preserved_token_indices=preserved,
+                    tau=tau,
+                )
 
         install_controller(self.c.unet, controller)
 

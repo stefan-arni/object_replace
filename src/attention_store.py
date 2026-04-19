@@ -17,6 +17,8 @@ import torch
 
 from diffusers.models.attention_processor import Attention, AttnProcessor, AttnProcessor2_0
 
+from schedules import ScheduleSet
+
 
 class AttentionController:
     """Base controller. Default behavior is pass-through. Subclass to store/inject."""
@@ -155,6 +157,71 @@ class P2PReplaceController(AttentionController):
         tgt_c[:, :, idx] = src_c[:, :, idx]
 
         return torch.cat([src_u, src_c, tgt_u, tgt_c], dim=0)
+
+
+class ScheduleController(AttentionController):
+    """The novel-schedule controller. For each cross-attn call, looks up the
+    swap weight per token (via ScheduleSet + role map) and blends source's
+    cross-attn into target's column-by-column.
+
+    Same batch arrangement assumption as P2PReplaceController:
+        [src_uncond, src_cond, tgt_uncond, tgt_cond]
+    """
+
+    def __init__(self, schedule_set: ScheduleSet, total_steps: int, token_roles: dict[int, str]):
+        super().__init__()
+        self.schedule = schedule_set
+        self.total_steps = total_steps
+        self.roles = token_roles
+        self._weights_cache: torch.Tensor | None = None
+        self._cached_step: int | None = None
+
+    def _weights_for_step(self, L: int, device, dtype) -> torch.Tensor:
+        if self._cached_step == self.cur_step and self._weights_cache is not None:
+            return self._weights_cache
+        t_frac = self.cur_step / max(self.total_steps - 1, 1)
+        w = torch.zeros(L, device=device, dtype=dtype)
+        for j in range(L):
+            w[j] = self.schedule(t_frac, self.roles.get(j, "context"))
+        self._weights_cache = w
+        self._cached_step = self.cur_step
+        return w
+
+    def __call__(self, attn_probs, layer_name, is_cross):
+        if not is_cross or self.cur_step is None:
+            return attn_probs
+
+        BH, _, L = attn_probs.shape
+        assert BH % 4 == 0, f"ScheduleController expects batch=4 arrangement, got BH={BH}"
+        H = BH // 4
+        src_u, src_c, tgt_u, tgt_c = attn_probs.split(H, dim=0)
+
+        w = self._weights_for_step(L, attn_probs.device, attn_probs.dtype)  # (L,)
+        # Broadcasts as (1, 1, L) over (B*H, HW, L)
+        tgt_u_blended = w * src_u + (1 - w) * tgt_u
+        tgt_c_blended = w * src_c + (1 - w) * tgt_c
+
+        return torch.cat([src_u, src_c, tgt_u_blended, tgt_c_blended], dim=0)
+
+
+def classify_token_roles(tokenizer, source_prompt: str, target_prompt: str) -> dict[int, str]:
+    """Map token position -> role for use by ScheduleController."""
+    max_len = tokenizer.model_max_length
+    src = tokenizer(source_prompt, padding="max_length", max_length=max_len,
+                    truncation=True, return_tensors="pt").input_ids[0].tolist()
+    tgt = tokenizer(target_prompt, padding="max_length", max_length=max_len,
+                    truncation=True, return_tensors="pt").input_ids[0].tolist()
+    special = {tokenizer.bos_token_id, tokenizer.eos_token_id, tokenizer.pad_token_id}
+
+    roles: dict[int, str] = {}
+    for i in range(max_len):
+        if src[i] in special and tgt[i] in special:
+            roles[i] = "context"
+        elif src[i] != tgt[i]:
+            roles[i] = "replaced"
+        else:
+            roles[i] = "preserved"
+    return roles
 
 
 def infer_preserved_token_indices(tokenizer, source_prompt: str, target_prompt: str) -> list[int]:
