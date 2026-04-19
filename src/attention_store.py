@@ -22,8 +22,9 @@ class AttentionController:
     """Base controller. Default behavior is pass-through. Subclass to store/inject."""
 
     def __init__(self):
-        # The Editor sets this before every UNet call so the controller can key by timestep.
-        self.cur_t: int | None = None
+        # The Editor sets these before every UNet call.
+        self.cur_t: int | None = None      # raw timestep value
+        self.cur_step: int | None = None   # 0-indexed sampling step
 
     def __call__(self, attn_probs: torch.Tensor, layer_name: str, is_cross: bool) -> torch.Tensor:
         return attn_probs
@@ -117,6 +118,55 @@ class HookedAttnProcessor:
             hidden_states = hidden_states + residual
 
         return hidden_states / attn.rescale_output_factor
+
+
+class P2PReplaceController(AttentionController):
+    """Vanilla Prompt-to-Prompt 'replace' mode.
+
+    Assumes the editor batches the UNet call as
+        [src_uncond, src_cond, tgt_uncond, tgt_cond]
+    For cross-attn columns at `preserved_token_indices` (positions where source
+    and target tokenize identically), replace target's attention with source's
+    until step `tau * total_steps`. Tokens that differ keep target's own attn,
+    which is how the swap actually happens.
+    """
+
+    def __init__(self, total_steps: int, preserved_token_indices: list[int], tau: float = 0.8):
+        super().__init__()
+        self.total_steps = total_steps
+        self.preserved = preserved_token_indices
+        self.cutoff_step = int(tau * total_steps)
+
+    def __call__(self, attn_probs, layer_name, is_cross):
+        if not is_cross or self.cur_step is None or self.cur_step >= self.cutoff_step:
+            return attn_probs
+        if not self.preserved:
+            return attn_probs
+
+        BH = attn_probs.shape[0]
+        assert BH % 4 == 0, f"P2PReplaceController expects batch=4 arrangement, got BH={BH}"
+        H = BH // 4
+        src_u, src_c, tgt_u, tgt_c = attn_probs.split(H, dim=0)
+
+        idx = torch.tensor(self.preserved, device=attn_probs.device)
+        tgt_u = tgt_u.clone()
+        tgt_c = tgt_c.clone()
+        tgt_u[:, :, idx] = src_u[:, :, idx]
+        tgt_c[:, :, idx] = src_c[:, :, idx]
+
+        return torch.cat([src_u, src_c, tgt_u, tgt_c], dim=0)
+
+
+def infer_preserved_token_indices(tokenizer, source_prompt: str, target_prompt: str) -> list[int]:
+    """Indices where source and target tokenize to the same id (after padding to max_len).
+    Padding tokens at the tail will match in both, which is fine -- they carry no meaning.
+    """
+    max_len = tokenizer.model_max_length
+    src = tokenizer(source_prompt, padding="max_length", max_length=max_len,
+                    truncation=True, return_tensors="pt").input_ids[0]
+    tgt = tokenizer(target_prompt, padding="max_length", max_length=max_len,
+                    truncation=True, return_tensors="pt").input_ids[0]
+    return [i for i in range(max_len) if src[i].item() == tgt[i].item()]
 
 
 def _attn_modules(unet) -> list[tuple[str, Attention]]:
