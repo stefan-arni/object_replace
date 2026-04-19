@@ -115,15 +115,18 @@ def null_text_inversion(
         a_prev = _alpha_bar(c, timesteps_desc[i + 1]) if i + 1 < S else final_alpha_bar
         target = traj[S - i - 1]
 
+        # cond eps doesn't depend on null, compute it once outside the grad-tracked loop.
+        with torch.no_grad():
+            eps_c = c.unet(z_t, t, encoder_hidden_states=cond).sample
+
         null_t = null_t.detach().requires_grad_(True)
-        opt = torch.optim.Adam([null_t], lr=inner_lr)
+        # LR decay from the null-text paper: lets the harder later timesteps take smaller steps.
+        opt = torch.optim.Adam([null_t], lr=inner_lr * (1.0 - i / 100.0))
 
         last_loss = None
         for _ in range(inner_steps):
             opt.zero_grad()
-            embed = torch.cat([null_t.to(c.dtype), cond], dim=0)
-            x_in = torch.cat([z_t, z_t], dim=0)
-            eps_u, eps_c = c.unet(x_in, t, encoder_hidden_states=embed).sample.chunk(2)
+            eps_u = c.unet(z_t, t, encoder_hidden_states=null_t.to(c.dtype)).sample
             eps = eps_u + guidance_scale * (eps_c - eps_u)
 
             x0 = (z_t - (1 - a_t).sqrt() * eps) / a_t.sqrt()
@@ -133,16 +136,14 @@ def null_text_inversion(
             loss.backward()
             opt.step()
             last_loss = loss.item()
-            if last_loss < early_stop_eps:
+            if last_loss < early_stop_eps + i * 2e-5:
                 break
 
         null_embeds.append(null_t.detach().to(c.dtype).cpu().clone())
 
-        # Apply the actual step using the optimized null so error doesn't accumulate.
+        # Apply the actual step with the optimized null so error doesn't accumulate.
         with torch.no_grad():
-            embed = torch.cat([null_t.detach().to(c.dtype), cond], dim=0)
-            x_in = torch.cat([z_t, z_t], dim=0)
-            eps_u, eps_c = c.unet(x_in, t, encoder_hidden_states=embed).sample.chunk(2)
+            eps_u = c.unet(z_t, t, encoder_hidden_states=null_t.detach().to(c.dtype)).sample
             eps = eps_u + guidance_scale * (eps_c - eps_u)
             x0 = (z_t - (1 - a_t).sqrt() * eps) / a_t.sqrt()
             z_t = a_prev.sqrt() * x0 + (1 - a_prev).sqrt() * eps
