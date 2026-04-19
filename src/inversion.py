@@ -19,6 +19,11 @@ from sd_components import SDComponents, encode_image, encode_prompt
 
 CACHE_DIR = Path(__file__).resolve().parent.parent / "outputs" / "null_text_cache"
 
+# fp16 gradients inside the UNet underflow if the loss is small. Scale the loss
+# before backward so intermediate fp16 grads stay representable, then unscale
+# the resulting fp32 grad on null_t before the Adam step. Standard MP trick.
+_LOSS_SCALE = 128.0
+
 
 @dataclass
 class NullTextResult:
@@ -133,7 +138,9 @@ def null_text_inversion(
             z_pred = a_prev.sqrt() * x0 + (1 - a_prev).sqrt() * eps
 
             loss = ((z_pred.float() - target.float()) ** 2).mean()
-            loss.backward()
+            (loss * _LOSS_SCALE).backward()
+            if null_t.grad is not None:
+                null_t.grad.div_(_LOSS_SCALE)
             opt.step()
             last_loss = loss.item()
             if last_loss < early_stop_eps + i * 2e-5:
