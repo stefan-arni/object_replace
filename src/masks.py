@@ -9,8 +9,10 @@ The recipe (from the spec):
   - Average over heads, then average all selected layer-timestep maps after
     upsampling them to 64x64.
   - Threshold at the 80th percentile, dilate a couple of pixels.
+  - Optional Gaussian blur to soften the edges (avoids pasted-cutout look in
+    the final image when blending in latent space).
 
-Returned shape (1, 1, 64, 64), float in {0., 1.}, matches latent spatial dims.
+Returned shape (1, 1, 64, 64), float in [0, 1], matches latent spatial dims.
 """
 import math
 
@@ -28,6 +30,7 @@ def derive_attention_mask(
     upsample_to: int = 64,
     threshold_quantile: float = 0.8,
     dilate_pixels: int = 2,
+    soft_blur_sigma: float = 1.5,
     batch_size: int = 2,
     use_sample_index: int = 1,
 ) -> torch.Tensor:
@@ -78,6 +81,8 @@ def derive_attention_mask(
     binary = (avg >= threshold).float()
     if dilate_pixels > 0:
         binary = _dilate(binary, dilate_pixels)
+    if soft_blur_sigma > 0:
+        binary = _gaussian_blur(binary, soft_blur_sigma)
     return binary[None, None]
 
 
@@ -87,9 +92,22 @@ def _dilate(mask: torch.Tensor, pixels: int) -> torch.Tensor:
     return F.max_pool2d(mask[None, None], kernel_size=k, stride=1, padding=pixels)[0, 0]
 
 
+def _gaussian_blur(mask: torch.Tensor, sigma: float) -> torch.Tensor:
+    """Separable Gaussian blur. Input/output (H, W). Output is float in [0, 1]."""
+    k = int(2 * round(2 * sigma) + 1)
+    pad = k // 2
+    x = torch.arange(k, dtype=mask.dtype, device=mask.device) - pad
+    g = torch.exp(-(x ** 2) / (2 * sigma * sigma))
+    g = g / g.sum()
+    m = mask[None, None]
+    m = F.conv2d(m, g.view(1, 1, 1, k), padding=(0, pad))
+    m = F.conv2d(m, g.view(1, 1, k, 1), padding=(pad, 0))
+    return m[0, 0]
+
+
 def visualize_mask(mask: torch.Tensor, size: int = 512) -> torch.Tensor:
     """Upsample mask to viewable size for a quick PIL save. Returns (H, W) in [0, 1]."""
     m = mask
     if m.ndim == 4:
         m = m[0, 0]
-    return F.interpolate(m[None, None].float(), size=(size, size), mode="nearest")[0, 0]
+    return F.interpolate(m[None, None].float(), size=(size, size), mode="bilinear", align_corners=False)[0, 0]

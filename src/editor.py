@@ -47,6 +47,7 @@ class Editor:
         tau: float = 0.8,
         return_mask: bool = False,
         precomputed_mask: torch.Tensor | None = None,
+        mask_blend_until_frac: float = 0.9,
     ) -> Image.Image | tuple[Image.Image, torch.Tensor | None]:
         if mask_mode not in ("none", "attention"):
             raise ValueError(f"unknown mask_mode={mask_mode!r}")
@@ -124,7 +125,11 @@ class Editor:
                     z_tgt = a_prev.sqrt() * x0_tgt + (1 - a_prev).sqrt() * eps_tgt
 
                     if mask_dev is not None:
-                        z_tgt = mask_dev * z_tgt + (1 - mask_dev) * z_src
+                        # Late-step skip: let the last few steps run free so fine
+                        # texture isn't constrained to fit source's high-freq layout.
+                        t_frac = i / max(num_inference_steps - 1, 1)
+                        if t_frac < mask_blend_until_frac:
+                            z_tgt = mask_dev * z_tgt + (1 - mask_dev) * z_src
         finally:
             uninstall_controller(self.c.unet)
 
