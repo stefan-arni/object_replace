@@ -46,6 +46,7 @@ class Editor:
         inversion_inner_steps: int = 10,
         tau: float = 0.8,
         return_mask: bool = False,
+        precomputed_mask: torch.Tensor | None = None,
     ) -> Image.Image | tuple[Image.Image, torch.Tensor | None]:
         if mask_mode not in ("none", "attention"):
             raise ValueError(f"unknown mask_mode={mask_mode!r}")
@@ -76,10 +77,11 @@ class Editor:
                     tau=tau,
                 )
 
-        # Step 8: scout pass to derive a mask, if requested. Done before the edit
-        # pass because we want the mask available at every blending step.
-        mask = None
-        if mask_mode == "attention":
+        # Scout pass to derive a mask, if requested. Skipped if caller already
+        # has one (the ablation runner derives once per image and reuses it
+        # across schedules to keep bg_lpips comparable).
+        mask = precomputed_mask
+        if mask_mode == "attention" and mask is None:
             replaced_indices = [j for j, r in roles.items() if r == "replaced"]
             mask = self._scout_mask(
                 nt, source_cond, num_inference_steps, guidance_scale, replaced_indices,
@@ -130,6 +132,30 @@ class Editor:
         if return_mask:
             return img, mask
         return img
+
+    def derive_mask(
+        self,
+        image: Image.Image,
+        source_prompt: str,
+        target_prompt: str,
+        *,
+        num_inference_steps: int = 50,
+        guidance_scale: float = 7.5,
+        inversion_inner_steps: int = 10,
+    ) -> torch.Tensor:
+        """Derive the attention mask without doing a full edit. Useful when the
+        caller wants one mask per image to evaluate background-LPIPS fairly
+        across multiple schedules."""
+        nt = null_text_inversion(
+            self.c, image, source_prompt,
+            num_inference_steps=num_inference_steps,
+            guidance_scale=guidance_scale,
+            inner_steps=inversion_inner_steps,
+        )
+        source_cond = encode_prompt(self.c, source_prompt)
+        roles = classify_token_roles(self.c.tokenizer, source_prompt, target_prompt)
+        replaced_indices = [j for j, r in roles.items() if r == "replaced"]
+        return self._scout_mask(nt, source_cond, num_inference_steps, guidance_scale, replaced_indices)
 
     def _scout_mask(
         self,
