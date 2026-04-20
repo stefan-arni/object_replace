@@ -44,11 +44,11 @@ def image_to_latent(c: SDComponents, image_pil: Image.Image, size: int = 512) ->
     return encode_image(c, t)
 
 
-def _cache_key(image_pil, prompt, num_inference_steps, guidance_scale, size=512) -> str:
+def _cache_key(image_pil, prompt, num_inference_steps, guidance_scale, inner_steps, size=512) -> str:
     h = hashlib.sha256()
     h.update(_preprocess(image_pil, size).tobytes())
     h.update(prompt.encode())
-    h.update(f"{num_inference_steps}|{guidance_scale}".encode())
+    h.update(f"{num_inference_steps}|{guidance_scale}|{inner_steps}".encode())
     return h.hexdigest()[:16]
 
 
@@ -87,7 +87,7 @@ def null_text_inversion(
 ) -> NullTextResult:
     if use_cache:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        cache_path = CACHE_DIR / f"{_cache_key(image_pil, prompt, num_inference_steps, guidance_scale)}.pkl"
+        cache_path = CACHE_DIR / f"{_cache_key(image_pil, prompt, num_inference_steps, guidance_scale, inner_steps)}.pkl"
         if cache_path.exists():
             if verbose:
                 print(f"loaded cached null-text result from {cache_path.name}")
