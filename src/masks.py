@@ -86,6 +86,40 @@ def derive_attention_mask(
     return binary[None, None]
 
 
+def derive_target_mask(
+    target_maps: dict[tuple[int, str], torch.Tensor],
+    replaced_token_indices: list[int],
+    timesteps_desc_list: list[int],
+    *,
+    mid_t_range: tuple[float, float] = (0.3, 0.7),
+    target_resolutions: tuple[int, ...] = (16, 32),
+    upsample_to: int = 64,
+    threshold_quantile: float = 0.8,
+    dilate_pixels: int = 2,
+    soft_blur_sigma: float = 0.5,
+) -> torch.Tensor:
+    """Same recipe as derive_attention_mask but for target-side captured maps.
+
+    target_maps stores raw target-conditional attention (heads only, no batch
+    interleaving), so batch_size=1 / use_sample_index=0. Reads the columns at
+    `replaced_token_indices` -- positions where the target prompt has the new
+    word -- to find where the target object will render.
+    """
+    return derive_attention_mask(
+        captured_maps=target_maps,
+        source_token_indices=replaced_token_indices,
+        timesteps_desc_list=timesteps_desc_list,
+        mid_t_range=mid_t_range,
+        target_resolutions=target_resolutions,
+        upsample_to=upsample_to,
+        threshold_quantile=threshold_quantile,
+        dilate_pixels=dilate_pixels,
+        soft_blur_sigma=soft_blur_sigma,
+        batch_size=1,
+        use_sample_index=0,
+    )
+
+
 def _dilate(mask: torch.Tensor, pixels: int) -> torch.Tensor:
     """Max-pool dilation. Input (H, W), output (H, W)."""
     k = 2 * pixels + 1

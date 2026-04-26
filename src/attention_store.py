@@ -168,13 +168,24 @@ class ScheduleController(AttentionController):
         [src_uncond, src_cond, tgt_uncond, tgt_cond]
     """
 
-    def __init__(self, schedule_set: ScheduleSet, total_steps: int, token_roles: dict[int, str]):
+    def __init__(
+        self,
+        schedule_set: ScheduleSet,
+        total_steps: int,
+        token_roles: dict[int, str],
+        capture_target_attn: bool = False,
+    ):
         super().__init__()
         self.schedule = schedule_set
         self.total_steps = total_steps
         self.roles = token_roles
         self._weights_cache: torch.Tensor | None = None
         self._cached_step: int | None = None
+        # Optional: capture target-side conditional attention so we can derive a
+        # "where the target object actually rendered" mask after the edit pass.
+        # Used by Editor.composite_mode='inpaint' for shape-mismatch edits.
+        self.capture_target_attn = capture_target_attn
+        self.target_maps: dict[tuple[int, str], torch.Tensor] = {}
 
     def _weights_for_step(self, L: int, device, dtype) -> torch.Tensor:
         if self._cached_step == self.cur_step and self._weights_cache is not None:
@@ -195,6 +206,12 @@ class ScheduleController(AttentionController):
         assert BH % 4 == 0, f"ScheduleController expects batch=4 arrangement, got BH={BH}"
         H = BH // 4
         src_u, src_c, tgt_u, tgt_c = attn_probs.split(H, dim=0)
+
+        # Capture pre-blend target attention. The replaced columns are unchanged
+        # by the blend (their swap_weight is 0 by design), so this is effectively
+        # the model's own "where would the target object render" attention.
+        if self.capture_target_attn:
+            self.target_maps[(int(self.cur_t), layer_name)] = tgt_c.detach().cpu()
 
         w = self._weights_for_step(L, attn_probs.device, attn_probs.dtype)  # (L,)
         # Broadcasts as (1, 1, L) over (B*H, HW, L)

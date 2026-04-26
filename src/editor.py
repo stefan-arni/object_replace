@@ -19,8 +19,9 @@ from attention_store import (
     uninstall_controller,
 )
 from ddim import _alpha_bar
+from inpaint import blended_inpaint, derive_background_prompt
 from inversion import null_text_inversion
-from masks import derive_attention_mask
+from masks import derive_attention_mask, derive_target_mask
 from schedules import ScheduleSet
 from sd_components import SDComponents, decode_latents, encode_prompt
 
@@ -51,9 +52,15 @@ class Editor:
         precomputed_mask: torch.Tensor | None = None,
         mask_blend_until_frac: float = 0.7,
         pixel_composite: bool = True,
+        composite_mode: str = "strict",
+        background_prompt: str | None = None,
     ) -> Image.Image | tuple[Image.Image, torch.Tensor | None]:
         if mask_mode not in ("none", "attention"):
             raise ValueError(f"unknown mask_mode={mask_mode!r}")
+        if composite_mode not in ("strict", "inpaint"):
+            raise ValueError(f"unknown composite_mode={composite_mode!r}")
+        if composite_mode == "inpaint" and mask_mode != "attention":
+            raise ValueError("composite_mode='inpaint' requires mask_mode='attention'")
 
         nt = null_text_inversion(
             self.c, image, source_prompt,
@@ -65,6 +72,7 @@ class Editor:
         source_cond = encode_prompt(self.c, source_prompt)
         target_cond = encode_prompt(self.c, target_prompt)
         roles = classify_token_roles(self.c.tokenizer, source_prompt, target_prompt)
+        replaced_indices = [j for j, r in roles.items() if r == "replaced"]
 
         if controller is None:
             if schedule is not None:
@@ -72,6 +80,7 @@ class Editor:
                     schedule_set=schedule,
                     total_steps=num_inference_steps,
                     token_roles=roles,
+                    capture_target_attn=(composite_mode == "inpaint"),
                 )
             else:
                 preserved = infer_preserved_token_indices(self.c.tokenizer, source_prompt, target_prompt)
@@ -80,6 +89,8 @@ class Editor:
                     preserved_token_indices=preserved,
                     tau=tau,
                 )
+                if composite_mode == "inpaint":
+                    raise ValueError("composite_mode='inpaint' requires a `schedule` (uses ScheduleController for target-attn capture)")
 
         # Scout pass to derive a mask, if requested. Skipped if caller already
         # has one (the ablation runner derives once per image and reuses it
@@ -138,10 +149,58 @@ class Editor:
 
         edit_pixels = decode_latents(self.c, z_tgt).clamp(-1, 1)
 
+        # Source pixels at 512x512 (used by both composite paths).
+        src_arr = np.asarray(image.convert("RGB").resize((512, 512))).astype("float32") / 127.5 - 1.0
+        src_pixels = torch.from_numpy(src_arr).permute(2, 0, 1).unsqueeze(0).to(self.c.device, self.c.dtype)
+
+        if composite_mode == "inpaint" and mask is not None:
+            # Three-region composite for shape-mismatch edits:
+            #   outside source_mask : source pixels (untouched)
+            #   inside  target_mask : edit pixels (the new object as it actually rendered)
+            #   inside  diff_mask   : separately inpainted background
+            self.c.scheduler.set_timesteps(num_inference_steps, device=self.c.device)
+            timesteps_list = self.c.scheduler.timesteps.tolist()
+            target_mask = derive_target_mask(
+                controller.target_maps,
+                replaced_token_indices=replaced_indices,
+                timesteps_desc_list=timesteps_list,
+            )
+            src_mask_512 = F.interpolate(mask.float(), size=(512, 512),
+                                          mode="bilinear", align_corners=False).to(self.c.device, self.c.dtype)
+            tgt_mask_512 = F.interpolate(target_mask.float(), size=(512, 512),
+                                          mode="bilinear", align_corners=False).to(self.c.device, self.c.dtype)
+            tgt_mask_512 = torch.minimum(tgt_mask_512, src_mask_512)  # don't paint mouse outside firetruck
+            diff_mask_512 = torch.clamp(src_mask_512 - tgt_mask_512, 0.0, 1.0)
+
+            if diff_mask_512.mean().item() > 0.005:
+                if background_prompt is None:
+                    src_word = self._first_replaced_word(source_prompt, replaced_indices)
+                    bg_prompt = derive_background_prompt(source_prompt, src_word)
+                else:
+                    bg_prompt = background_prompt
+                diff_mask_64 = F.interpolate(diff_mask_512[:, :1].float(), size=(64, 64),
+                                             mode="bilinear", align_corners=False)
+                inpainted = blended_inpaint(
+                    self.c, image, diff_mask_64, bg_prompt,
+                    num_inference_steps=num_inference_steps,
+                    guidance_scale=guidance_scale,
+                )
+            else:
+                # Diff region too small to bother inpainting -- fall back to source pixels there.
+                inpainted = src_pixels
+
+            final = (
+                (1 - src_mask_512) * src_pixels
+                + tgt_mask_512 * edit_pixels
+                + diff_mask_512 * inpainted
+            )
+            img = _to_pil(final)
+            if return_mask:
+                return img, mask
+            return img
+
         if pixel_composite and mask is not None:
-            # True inpainting: outside the mask = exact source pixels.
-            src_arr = np.asarray(image.convert("RGB").resize((512, 512))).astype("float32") / 127.5 - 1.0
-            src_pixels = torch.from_numpy(src_arr).permute(2, 0, 1).unsqueeze(0).to(self.c.device, self.c.dtype)
+            # Strict mode: outside the mask = exact source pixels.
             pixel_mask = F.interpolate(
                 mask.float(), size=(512, 512), mode="bilinear", align_corners=False,
             ).to(self.c.device, self.c.dtype)
@@ -151,6 +210,23 @@ class Editor:
         if return_mask:
             return img, mask
         return img
+
+    def _first_replaced_word(self, source_prompt: str, replaced_indices: list[int]) -> str:
+        """Decode the first non-special replaced token back to a word."""
+        max_len = self.c.tokenizer.model_max_length
+        ids = self.c.tokenizer(
+            source_prompt, padding="max_length", max_length=max_len,
+            truncation=True, return_tensors="pt",
+        ).input_ids[0]
+        special = {self.c.tokenizer.bos_token_id, self.c.tokenizer.eos_token_id, self.c.tokenizer.pad_token_id}
+        for j in replaced_indices:
+            tid = ids[j].item()
+            if tid in special:
+                continue
+            tok = self.c.tokenizer.decode([tid]).strip()
+            if tok:
+                return tok
+        return "object"
 
     def derive_mask(
         self,
