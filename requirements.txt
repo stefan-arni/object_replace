@@ -1,5 +1,6 @@
 torch
 diffusers
+gradio
 transformers
 Pillow
 einops
