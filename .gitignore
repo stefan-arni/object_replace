@@ -22,3 +22,5 @@ env/
 .vscode/
 .idea/
 *.swp
+
+.teammate_git_backups/
