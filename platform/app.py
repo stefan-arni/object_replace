@@ -1,62 +1,107 @@
-"""Unified Gradio app for the 3-person CS5788 generative-models project.
+"""Unified Gradio app for the CS5788 image-editor project.
 
-Three operations on a real photograph:
-  1. Object Replacement (Stefan)  -- this repo's Editor
-  2. Repositioning      (teammate) -- swap in their function below
-  3. Style Transfer     (teammate) -- swap in their function below
+Three tabs, one image -> three different operations:
+  1. Replace Object  (Stefan)   -- swap one object in a real photo for another
+  2. Move Object     (teammate) -- DDPM noise-shift relocation, paint two masks
+  3. Apply Style     (teammate) -- LoRA-blended art-style transfer
+
+Each module loads its own SD components LAZILY on first use of that tab.
+Models live across tab switches; only freshly-clicked tabs trigger loads.
 
 Run locally:
-    cd platform && python app.py
+    python platform/app.py
 
-Or deploy to HuggingFace Spaces:
-    gradio deploy
+Public sharable link: starts on launch (share=True).
 """
 import sys
 from pathlib import Path
 
 import gradio as gr
+import numpy as np
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(PROJECT_ROOT / "Drag-Diffusion"))
+sys.path.insert(0, str(PROJECT_ROOT / "Picture_Editor_3in1"))
 
-from shared import get_editor  # loads SD lazily on first call
 
+# ============================================================================
+# LAZY MODEL LOADERS  (each module loads its own SD on first call)
+# ============================================================================
+_object_editor = None
+_relocation_pipe = None
+_style_pipe = None
+
+
+def _get_object_editor():
+    global _object_editor
+    if _object_editor is None:
+        gr.Info("Loading Stable Diffusion 1.5 for object replacement (one-time, ~30s)...")
+        from sd_components import load_sd
+        from editor import Editor
+        _object_editor = Editor(load_sd())
+    return _object_editor
+
+
+def _get_relocation_pipe():
+    global _relocation_pipe
+    if _relocation_pipe is None:
+        gr.Info("Loading Stable Diffusion 2.1 for object relocation (one-time, ~60s)...")
+        from pipeline.relocation_pipeline import ObjectRelocationPipeline
+        _relocation_pipe = ObjectRelocationPipeline()
+    return _relocation_pipe
+
+
+def _get_style_pipe():
+    global _style_pipe
+    if _style_pipe is None:
+        gr.Info("Loading Stable Diffusion 1.5 img2img + LoRA adapters (one-time, ~30s)...")
+        # Picture_Editor has a stale runwayml/* model ID baked in. Monkey-patch
+        # the module-global before loading so we don't have to edit their repo.
+        import inference
+        inference.MODEL_ID = "stable-diffusion-v1-5/stable-diffusion-v1-5"
+        _style_pipe = inference.load_pipeline(inference.get_device())
+    return _style_pipe
+
+
+# ============================================================================
+# TAB 1 — Object Replacement
+# ============================================================================
 SCHEDULES = {
-    "vanilla P2P (baseline)":  "vanilla_p2p",
-    "linear decay (recommended)": "linear_decay",
-    "cosine":                  "cosine",
-    "constant 0.5 (slow blend)": "constant_05",
-    "piecewise":               "piecewise",
+    "Linear decay (recommended)": "linear_decay",
+    "Vanilla P2P (baseline)": "vanilla_p2p",
+    "Cosine": "cosine",
+    "Constant 0.5 (slow blend)": "constant_05",
+    "Piecewise": "piecewise",
 }
 
 
-def _build_schedule(name: str):
+def _build_schedule(name_key: str):
     from schedules import (
         constant_replaced, cosine_replaced, linear_decay_replaced,
         piecewise_demo, vanilla_p2p,
     )
     return {
-        "vanilla_p2p":  vanilla_p2p(0.8),
         "linear_decay": linear_decay_replaced(),
+        "vanilla_p2p":  vanilla_p2p(0.8),
         "cosine":       cosine_replaced(),
         "constant_05":  constant_replaced(0.5),
         "piecewise":    piecewise_demo(),
-    }[name]
+    }[name_key]
 
 
-# ---------------------------------------------------------------------------
-# TAB 1: object replacement (your module)
-# ---------------------------------------------------------------------------
-def run_replace(image, source_prompt, target_prompt, schedule_name, mask_mode,
-                composite_mode, background_prompt):
+def run_replace(image, source_prompt, target_prompt, schedule_name,
+                mask_mode, composite_mode, background_prompt):
     if image is None:
-        return None, "upload an image first"
+        return None, "Upload an image first."
     if not source_prompt or not target_prompt:
-        return None, "fill in source and target prompts"
-    editor = get_editor()
+        return None, "Fill in both source and target prompts."
+
+    editor = _get_object_editor()
     schedule = _build_schedule(SCHEDULES[schedule_name])
-    img = image if isinstance(image, Image.Image) else Image.fromarray(image)
-    img = img.convert("RGB").resize((512, 512))
+    img = (image if isinstance(image, Image.Image) else Image.fromarray(image)).convert("RGB").resize((512, 512))
+
     try:
         result = editor.edit(
             img, source_prompt, target_prompt,
@@ -65,99 +110,298 @@ def run_replace(image, source_prompt, target_prompt, schedule_name, mask_mode,
             composite_mode=composite_mode,
             background_prompt=background_prompt or None,
         )
-        return result, "done"
+        return result, "Done."
     except Exception as e:
-        return None, f"error: {e}"
+        return None, f"Error: {e}"
 
 
-# ---------------------------------------------------------------------------
-# TAB 2: repositioning (teammate's module -- stub)
-# ---------------------------------------------------------------------------
-def run_reposition(image, prompt, dx, dy):
-    """STUB. Replace with teammate's function:
-        from teammate_repos.reposition import reposition
-        return reposition(image, prompt, dx=dx, dy=dy, c=get_components()), "done"
-    """
-    return None, "Repositioning module not yet wired in. Hand off to teammate."
+# ============================================================================
+# TAB 2 — Object Relocation (Drag-Diffusion)
+# ============================================================================
+def _extract_mask(editor_value, fallback_size=(512, 512)):
+    if editor_value is None:
+        return Image.new("L", fallback_size, 0)
+    layers = editor_value.get("layers") or []
+    if not layers or layers[0] is None:
+        return Image.new("L", fallback_size, 0)
+    layer = layers[0]
+    if layer.mode == "RGBA":
+        return layer.split()[3]
+    return layer.convert("L")
 
 
-# ---------------------------------------------------------------------------
-# TAB 3: style transfer (teammate's module -- stub)
-# ---------------------------------------------------------------------------
-def run_style(image, style_prompt, strength):
-    """STUB. Replace with teammate's function:
-        from teammate_repos.style import transfer
-        return transfer(image, style_prompt, strength=strength, c=get_components()), "done"
-    """
-    return None, "Style transfer module not yet wired in. Hand off to teammate."
+def _seed_editors(image):
+    """When an image is uploaded, push it into both mask editors so the user can paint on it."""
+    if image is None:
+        return gr.update(), gr.update()
+    blank = {"background": image, "layers": [], "composite": image}
+    return blank, blank
 
 
-# ---------------------------------------------------------------------------
+def run_relocate(image, src_editor, tgt_editor, prompt, use_noise_shift,
+                 seed, num_steps, sdedit_strength, guidance_scale):
+    if image is None:
+        return None, "Upload an image first."
+    if not prompt or not prompt.strip():
+        return None, "Describe the final scene in the prompt."
+
+    src_mask = _extract_mask(src_editor, image.size)
+    tgt_mask = _extract_mask(tgt_editor, image.size)
+    if np.array(src_mask).sum() == 0:
+        return None, "Paint a source mask (where the object IS now)."
+    if np.array(tgt_mask).sum() == 0:
+        return None, "Paint a target mask (where the object SHOULD GO)."
+
+    pipe = _get_relocation_pipe()
+    try:
+        result, _composite = pipe(
+            image, prompt, src_mask, tgt_mask,
+            use_noise_shift=bool(use_noise_shift),
+            seed=int(seed),
+            num_inference_steps=int(num_steps),
+            sdedit_strength=float(sdedit_strength),
+            guidance_scale=float(guidance_scale),
+        )
+        return result, "Done."
+    except Exception as e:
+        return None, f"Error: {e}"
+
+
+# ============================================================================
+# TAB 3 — Style Transfer (Picture_Editor_3in1)
+# ============================================================================
+NONE_LABEL = "(none)"
+
+
+def _style_choices():
+    """Read the live STYLES dict from Picture_Editor_3in1.styles."""
+    try:
+        from styles import STYLES
+        return [NONE_LABEL] + [STYLES[k]["display_name"] for k in STYLES]
+    except Exception:
+        return [NONE_LABEL]
+
+
+def _display_to_key(display: str) -> str | None:
+    if display == NONE_LABEL:
+        return None
+    from styles import STYLES
+    for k, v in STYLES.items():
+        if v["display_name"] == display:
+            return k
+    return None
+
+
+def run_style(image, style1, w1, style2, w2, style3, w3,
+              strength, num_steps, guidance_scale, seed):
+    if image is None:
+        return None, "Upload an image first."
+
+    keys = [(_display_to_key(style1), w1),
+            (_display_to_key(style2), w2),
+            (_display_to_key(style3), w3)]
+    keys = [(k, w) for k, w in keys if k is not None and w > 0]
+    if not keys:
+        return None, "Pick at least one style."
+
+    pipe = _get_style_pipe()
+    from inference import set_style_mix, build_prompt, stylize_image
+    try:
+        set_style_mix(pipe, keys)
+        prompt = build_prompt(keys)
+        result = stylize_image(
+            pipe, image, prompt,
+            strength=float(strength),
+            guidance_scale=float(guidance_scale),
+            num_inference_steps=int(num_steps),
+            seed=int(seed) if seed is not None else None,
+        )
+        return result, f"Applied: {prompt}"
+    except Exception as e:
+        return None, f"Error: {e}"
+
+
+# ============================================================================
 # UI
-# ---------------------------------------------------------------------------
-with gr.Blocks(title="CS5788 — Unified Image Editor") as app:
-    gr.Markdown(
-        "# CS5788 Generative Models — Unified Image Editor\n"
-        "Three operations on a real photograph: replace an object, "
-        "reposition an object, or transfer a style. All three share one Stable "
-        "Diffusion v1.5 backbone loaded once at startup."
+# ============================================================================
+CSS = """
+#hero {
+    background: linear-gradient(135deg, #6366f1 0%, #ec4899 50%, #f59e0b 100%);
+    color: white;
+    padding: 32px 28px;
+    border-radius: 16px;
+    margin-bottom: 16px;
+}
+#hero h1 { color: white; margin: 0 0 8px 0; font-size: 28px; }
+#hero p  { color: rgba(255,255,255,0.92); margin: 0; font-size: 15px; }
+.gradio-container { max-width: 1280px !important; margin: auto; }
+.tab-nav button { font-size: 15px !important; padding: 10px 18px !important; }
+footer { display: none !important; }
+"""
+
+THEME = gr.themes.Soft(
+    primary_hue="indigo",
+    secondary_hue="pink",
+    neutral_hue="slate",
+).set(
+    body_background_fill="*neutral_50",
+    block_radius="12px",
+    button_primary_background_fill="*primary_500",
+    button_primary_background_fill_hover="*primary_600",
+)
+
+
+with gr.Blocks(theme=THEME, css=CSS, title="CS5788 — Image Editor 3-in-1") as app:
+
+    gr.HTML(
+        """
+        <div id="hero">
+            <h1>Image Editor 3-in-1</h1>
+            <p>Replace, move, or restyle any object in a real photograph.
+            Built on Stable Diffusion with three complementary editing pipelines.
+            CS5788 Generative Models, Cornell Tech.</p>
+        </div>
+        """
     )
 
     with gr.Tabs():
-        # --- Tab 1: Replace ---
-        with gr.Tab("Object Replacement"):
+        # ---------------- Tab 1 ----------------
+        with gr.Tab("Replace Object"):
+            gr.Markdown(
+                "**Swap one object in your photo for another.** "
+                "Describe what's there now and what you want instead. "
+                "The background stays bit-exact."
+            )
             with gr.Row():
-                with gr.Column():
-                    r_in = gr.Image(type="pil", label="source image")
-                    r_src = gr.Textbox(label="source prompt",
-                                       placeholder="a photograph of a cat sitting on a couch")
-                    r_tgt = gr.Textbox(label="target prompt",
-                                       placeholder="a photograph of a dog sitting on a couch")
-                    r_sched = gr.Dropdown(choices=list(SCHEDULES.keys()),
-                                          value="linear decay (recommended)",
-                                          label="schedule")
-                    r_mask = gr.Radio(choices=["attention", "none"],
-                                      value="attention",
-                                      label="mask mode")
-                    r_comp = gr.Radio(choices=["strict", "inpaint"],
-                                      value="strict",
-                                      label="composite mode (use 'inpaint' for shape-mismatch edits)")
-                    r_bg = gr.Textbox(label="background prompt (only used by inpaint mode; auto-derived if empty)",
-                                      placeholder="optional")
-                    r_btn = gr.Button("Run", variant="primary")
-                with gr.Column():
-                    r_out = gr.Image(type="pil", label="edited image")
-                    r_status = gr.Textbox(label="status", interactive=False)
-            r_btn.click(run_replace,
-                        [r_in, r_src, r_tgt, r_sched, r_mask, r_comp, r_bg],
-                        [r_out, r_status])
+                with gr.Column(scale=1):
+                    r_in = gr.Image(type="pil", label="Source image", height=380)
+                    r_src = gr.Textbox(
+                        label="Source prompt — what's in the photo now",
+                        placeholder="a photograph of a cat sitting on a couch",
+                    )
+                    r_tgt = gr.Textbox(
+                        label="Target prompt — what should replace it",
+                        placeholder="a photograph of a dog sitting on a couch",
+                    )
+                    with gr.Accordion("Advanced", open=False):
+                        r_sched = gr.Dropdown(
+                            choices=list(SCHEDULES.keys()),
+                            value="Linear decay (recommended)",
+                            label="Attention swap schedule",
+                        )
+                        r_mask = gr.Radio(
+                            choices=["attention", "none"], value="attention",
+                            label="Mask mode (attention = preserve background)",
+                        )
+                        r_comp = gr.Radio(
+                            choices=["strict", "inpaint"], value="strict",
+                            label="Composite mode (use 'inpaint' for size-mismatch edits)",
+                        )
+                        r_bg = gr.Textbox(
+                            label="Background prompt (only for inpaint mode; auto-derived if blank)",
+                            placeholder="optional",
+                        )
+                    r_btn = gr.Button("Replace object", variant="primary", size="lg")
+                with gr.Column(scale=1):
+                    r_out = gr.Image(type="pil", label="Edited image", height=380)
+                    r_status = gr.Textbox(label="Status", interactive=False)
+            r_btn.click(
+                run_replace,
+                [r_in, r_src, r_tgt, r_sched, r_mask, r_comp, r_bg],
+                [r_out, r_status],
+            )
 
-        # --- Tab 2: Reposition ---
-        with gr.Tab("Repositioning"):
+        # ---------------- Tab 2 ----------------
+        with gr.Tab("Move Object"):
+            gr.Markdown(
+                "**Move an object within the same photo.** "
+                "Paint over the object on the left (where it is now), "
+                "paint where you want it on the right, then describe the final scene."
+            )
             with gr.Row():
-                with gr.Column():
-                    p_in = gr.Image(type="pil", label="source image")
-                    p_prompt = gr.Textbox(label="object to reposition", placeholder="the cat")
-                    p_dx = gr.Slider(-1.0, 1.0, value=0.0, label="horizontal shift")
-                    p_dy = gr.Slider(-1.0, 1.0, value=0.0, label="vertical shift")
-                    p_btn = gr.Button("Run", variant="primary")
-                with gr.Column():
-                    p_out = gr.Image(type="pil", label="repositioned image")
-                    p_status = gr.Textbox(label="status", interactive=False)
-            p_btn.click(run_reposition, [p_in, p_prompt, p_dx, p_dy], [p_out, p_status])
+                with gr.Column(scale=1):
+                    m_in = gr.Image(type="pil", label="Source image", height=300)
+                    with gr.Row():
+                        m_src_mask = gr.ImageEditor(
+                            label="Source mask (paint over the object)",
+                            type="pil",
+                            height=280,
+                            brush=gr.Brush(default_size=30, colors=["#22c55e"]),
+                        )
+                        m_tgt_mask = gr.ImageEditor(
+                            label="Target mask (paint where to move it)",
+                            type="pil",
+                            height=280,
+                            brush=gr.Brush(default_size=30, colors=["#ef4444"]),
+                        )
+                    m_prompt = gr.Textbox(
+                        label="Final-scene prompt",
+                        placeholder="a cat sitting on the rug in a sunlit room",
+                    )
+                    with gr.Accordion("Advanced", open=False):
+                        m_noise_shift = gr.Checkbox(
+                            value=True,
+                            label="Use noise-prior shift (the novel contribution; uncheck for SDEdit baseline)",
+                        )
+                        m_seed = gr.Number(value=42, label="Seed", precision=0)
+                        m_steps = gr.Slider(20, 80, value=50, step=1, label="Inference steps")
+                        m_strength = gr.Slider(0.3, 1.0, value=0.7, step=0.05, label="SDEdit strength")
+                        m_cfg = gr.Slider(1.0, 15.0, value=7.5, step=0.5, label="Guidance scale")
+                    m_btn = gr.Button("Move object", variant="primary", size="lg")
+                with gr.Column(scale=1):
+                    m_out = gr.Image(type="pil", label="Result", height=380)
+                    m_status = gr.Textbox(label="Status", interactive=False)
+            m_in.change(_seed_editors, [m_in], [m_src_mask, m_tgt_mask])
+            m_btn.click(
+                run_relocate,
+                [m_in, m_src_mask, m_tgt_mask, m_prompt, m_noise_shift,
+                 m_seed, m_steps, m_strength, m_cfg],
+                [m_out, m_status],
+            )
 
-        # --- Tab 3: Style ---
-        with gr.Tab("Style Transfer"):
+        # ---------------- Tab 3 ----------------
+        with gr.Tab("Apply Style"):
+            gr.Markdown(
+                "**Repaint your photo in the style of one or more famous artists.** "
+                "Mix up to three styles with custom weights. Higher strength = stronger stylization."
+            )
+            style_choices = _style_choices()
             with gr.Row():
-                with gr.Column():
-                    s_in = gr.Image(type="pil", label="source image")
-                    s_style = gr.Textbox(label="style prompt", placeholder="oil painting in the style of Van Gogh")
-                    s_strength = gr.Slider(0.0, 1.0, value=0.5, label="strength")
-                    s_btn = gr.Button("Run", variant="primary")
-                with gr.Column():
-                    s_out = gr.Image(type="pil", label="stylized image")
-                    s_status = gr.Textbox(label="status", interactive=False)
-            s_btn.click(run_style, [s_in, s_style, s_strength], [s_out, s_status])
+                with gr.Column(scale=1):
+                    s_in = gr.Image(type="pil", label="Source image", height=380)
+                    with gr.Row():
+                        s_style1 = gr.Dropdown(style_choices, value=style_choices[1] if len(style_choices) > 1 else NONE_LABEL, label="Style 1")
+                        s_w1 = gr.Slider(0, 100, value=100, step=5, label="Weight 1 (%)")
+                    with gr.Row():
+                        s_style2 = gr.Dropdown(style_choices, value=NONE_LABEL, label="Style 2")
+                        s_w2 = gr.Slider(0, 100, value=0, step=5, label="Weight 2 (%)")
+                    with gr.Row():
+                        s_style3 = gr.Dropdown(style_choices, value=NONE_LABEL, label="Style 3")
+                        s_w3 = gr.Slider(0, 100, value=0, step=5, label="Weight 3 (%)")
+                    with gr.Accordion("Advanced", open=False):
+                        s_strength = gr.Slider(0.2, 1.0, value=0.65, step=0.05, label="Stylization strength")
+                        s_steps = gr.Slider(15, 60, value=30, step=1, label="Inference steps")
+                        s_cfg = gr.Slider(1.0, 15.0, value=7.5, step=0.5, label="Guidance scale")
+                        s_seed = gr.Number(value=0, label="Seed", precision=0)
+                    s_btn = gr.Button("Apply style", variant="primary", size="lg")
+                with gr.Column(scale=1):
+                    s_out = gr.Image(type="pil", label="Stylized image", height=380)
+                    s_status = gr.Textbox(label="Status", interactive=False)
+            s_btn.click(
+                run_style,
+                [s_in, s_style1, s_w1, s_style2, s_w2, s_style3, s_w3,
+                 s_strength, s_steps, s_cfg, s_seed],
+                [s_out, s_status],
+            )
+
+    gr.HTML(
+        """
+        <div style="text-align:center; padding: 16px; color: #64748b; font-size: 13px;">
+            CS5788 Generative Models · Cornell Tech · Spring 2026<br>
+            Object replacement · DDPM-noise-shift relocation · LoRA-adapted style transfer
+        </div>
+        """
+    )
 
 
 if __name__ == "__main__":
