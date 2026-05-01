@@ -1,6 +1,7 @@
 torch
 diffusers
 gradio
+torchao>=0.16.0
 transformers
 Pillow
 einops

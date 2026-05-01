@@ -233,29 +233,157 @@ def run_style(image, style1, w1, style2, w2, style3, w3,
 # UI
 # ============================================================================
 CSS = """
-#hero {
-    background: linear-gradient(135deg, #6366f1 0%, #ec4899 50%, #f59e0b 100%);
-    color: white;
-    padding: 32px 28px;
-    border-radius: 16px;
-    margin-bottom: 16px;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+
+/* --- base canvas --------------------------------------------------------- */
+:root, body, .gradio-container, .dark {
+    background: #0a0b10 !important;
+    color: #e4e4e7 !important;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-feature-settings: "ss01", "cv11";
 }
-#hero h1 { color: white; margin: 0 0 8px 0; font-size: 28px; }
-#hero p  { color: rgba(255,255,255,0.92); margin: 0; font-size: 15px; }
-.gradio-container { max-width: 1280px !important; margin: auto; }
-.tab-nav button { font-size: 15px !important; padding: 10px 18px !important; }
-footer { display: none !important; }
+.gradio-container { max-width: 1320px !important; margin: 0 auto !important; padding: 24px !important; }
+footer, .gradio-container > footer { display: none !important; }
+
+/* --- hero ---------------------------------------------------------------- */
+#hero {
+    position: relative;
+    padding: 56px 40px 48px;
+    margin-bottom: 28px;
+    border-radius: 20px;
+    background:
+      radial-gradient(circle at 18% 28%, rgba(99,102,241,0.20) 0%, transparent 55%),
+      radial-gradient(circle at 82% 72%, rgba(236,72,153,0.18) 0%, transparent 55%),
+      linear-gradient(180deg, #11121a 0%, #0c0d14 100%);
+    border: 1px solid rgba(255,255,255,0.07);
+    overflow: hidden;
+}
+#hero::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 30%, rgba(99,102,241,0.04) 100%);
+    pointer-events: none;
+}
+#hero .eyebrow {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.2em;
+    color: #818cf8; text-transform: uppercase; margin: 0 0 14px 0;
+}
+#hero h1 {
+    color: #fafafa !important; margin: 0 0 12px 0;
+    font-size: 44px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.05;
+    background: linear-gradient(180deg, #ffffff 0%, #a5b4fc 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+#hero p { color: #a1a1aa !important; margin: 0; font-size: 16px; max-width: 640px; line-height: 1.6; }
+
+/* --- tabs ---------------------------------------------------------------- */
+.tab-nav { background: transparent !important; border: none !important; gap: 4px !important; }
+.tab-nav button {
+    background: transparent !important; color: #71717a !important;
+    border: 1px solid transparent !important; border-radius: 10px !important;
+    padding: 10px 18px !important; font-weight: 500 !important; font-size: 14px !important;
+    transition: all 0.18s ease !important;
+}
+.tab-nav button:hover { color: #d4d4d8 !important; background: rgba(255,255,255,0.03) !important; }
+.tab-nav button.selected {
+    color: #ffffff !important;
+    background: rgba(99,102,241,0.12) !important;
+    border-color: rgba(129,140,248,0.30) !important;
+}
+
+/* --- cards / blocks ------------------------------------------------------ */
+.gr-block, .block, .form, .gr-form {
+    background: #11121a !important; border: 1px solid rgba(255,255,255,0.06) !important;
+    border-radius: 14px !important;
+}
+.tabitem { padding-top: 18px !important; }
+
+/* --- inputs -------------------------------------------------------------- */
+input, textarea, select, .gr-input, .gr-textbox textarea, .gr-dropdown {
+    background: #16172a !important; color: #f4f4f5 !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 10px !important; font-family: 'Inter', sans-serif !important;
+}
+input:focus, textarea:focus, .gr-input:focus, .gr-textbox textarea:focus {
+    border-color: #818cf8 !important; box-shadow: 0 0 0 3px rgba(129,140,248,0.15) !important;
+    outline: none !important;
+}
+label, .label-wrap span, .gr-form label {
+    color: #d4d4d8 !important; font-weight: 500 !important; font-size: 13px !important;
+    letter-spacing: 0.005em !important;
+}
+.label-wrap, .block-label { background: transparent !important; color: #a1a1aa !important; }
+
+/* --- buttons ------------------------------------------------------------- */
+button.primary, .gr-button-primary {
+    background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%) !important;
+    color: white !important; border: none !important; border-radius: 10px !important;
+    font-weight: 600 !important; letter-spacing: 0.005em !important;
+    padding: 12px 22px !important; font-size: 14px !important;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.10) inset, 0 8px 24px -8px rgba(99,102,241,0.45) !important;
+    transition: all 0.18s ease !important;
+}
+button.primary:hover, .gr-button-primary:hover {
+    background: linear-gradient(180deg, #7376f6 0%, #5b54f0 100%) !important;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.10) inset, 0 12px 32px -8px rgba(99,102,241,0.65) !important;
+    transform: translateY(-1px);
+}
+button.secondary, .gr-button-secondary {
+    background: rgba(255,255,255,0.04) !important; color: #d4d4d8 !important;
+    border: 1px solid rgba(255,255,255,0.10) !important; border-radius: 10px !important;
+}
+
+/* --- sliders, dropdowns, radios ----------------------------------------- */
+.gr-radio label, .gr-checkbox label { color: #d4d4d8 !important; }
+input[type="range"]::-webkit-slider-thumb { background: #818cf8 !important; }
+
+/* --- accordions ---------------------------------------------------------- */
+.gr-accordion {
+    background: rgba(255,255,255,0.02) !important; border: 1px solid rgba(255,255,255,0.06) !important;
+    border-radius: 12px !important;
+}
+.gr-accordion summary, .gr-accordion .label-wrap {
+    color: #d4d4d8 !important; font-weight: 500 !important;
+}
+
+/* --- images -------------------------------------------------------------- */
+.gr-image, .image-container, .gr-image-container {
+    background: #0c0d14 !important; border: 1px solid rgba(255,255,255,0.05) !important;
+    border-radius: 12px !important;
+}
+
+/* --- markdown ------------------------------------------------------------ */
+.gr-markdown, .prose {
+    color: #d4d4d8 !important;
+    background: transparent !important;
+}
+.gr-markdown p { color: #a1a1aa !important; line-height: 1.65; }
+.gr-markdown strong { color: #fafafa !important; font-weight: 600 !important; }
+
+/* --- footer below tabs --------------------------------------------------- */
+.app-footer {
+    text-align: center; padding: 32px 16px 8px;
+    color: #52525b; font-size: 12px; font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.05em; text-transform: uppercase;
+}
 """
 
-THEME = gr.themes.Soft(
+THEME = gr.themes.Base(
     primary_hue="indigo",
-    secondary_hue="pink",
-    neutral_hue="slate",
+    secondary_hue="violet",
+    neutral_hue="zinc",
+    font=("Inter", "ui-sans-serif", "system-ui"),
 ).set(
-    body_background_fill="*neutral_50",
-    block_radius="12px",
+    body_background_fill="#0a0b10",
+    body_text_color="#e4e4e7",
+    background_fill_primary="#11121a",
+    background_fill_secondary="#16172a",
+    border_color_primary="rgba(255,255,255,0.06)",
+    block_radius="14px",
     button_primary_background_fill="*primary_500",
-    button_primary_background_fill_hover="*primary_600",
+    button_primary_background_fill_hover="*primary_400",
+    button_primary_text_color="white",
+    block_title_text_color="#d4d4d8",
+    block_label_text_color="#a1a1aa",
 )
 
 
@@ -264,10 +392,10 @@ with gr.Blocks(theme=THEME, css=CSS, title="CS5788 — Image Editor 3-in-1") as 
     gr.HTML(
         """
         <div id="hero">
-            <h1>Image Editor 3-in-1</h1>
-            <p>Replace, move, or restyle any object in a real photograph.
-            Built on Stable Diffusion with three complementary editing pipelines.
-            CS5788 Generative Models, Cornell Tech.</p>
+            <p class="eyebrow">CS5788 · Generative Models · Spring 2026</p>
+            <h1>Edit Reality.</h1>
+            <p>Replace, relocate, or restyle any object in a real photograph.
+            Three complementary diffusion pipelines, one interface.</p>
         </div>
         """
     )
@@ -387,7 +515,7 @@ with gr.Blocks(theme=THEME, css=CSS, title="CS5788 — Image Editor 3-in-1") as 
                         s_style3 = gr.Dropdown(style_choices, value=NONE_LABEL, label="Style 3")
                         s_w3 = gr.Slider(0, 100, value=0, step=5, label="Weight 3 (%)")
                     with gr.Accordion("Advanced", open=False):
-                        s_strength = gr.Slider(0.2, 1.0, value=0.65, step=0.05, label="Stylization strength")
+                        s_strength = gr.Slider(0.2, 1.0, value=0.45, step=0.05, label="Stylization strength (raise for more abstract; lower to preserve subject)")
                         s_steps = gr.Slider(15, 60, value=30, step=1, label="Inference steps")
                         s_cfg = gr.Slider(1.0, 15.0, value=7.5, step=0.5, label="Guidance scale")
                         s_seed = gr.Number(value=0, label="Seed", precision=0)
