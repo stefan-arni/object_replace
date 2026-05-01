@@ -233,157 +233,183 @@ def run_style(image, style1, w1, style2, w2, style3, w3,
 # UI
 # ============================================================================
 CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* --- base canvas --------------------------------------------------------- */
+/* ============================================================
+   Editorial brutalism — strict B&W, hard edges, mono labels
+   ============================================================ */
+
+* { border-radius: 0 !important; }
+
 :root, body, .gradio-container, .dark {
-    background: #0a0b10 !important;
-    color: #e4e4e7 !important;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-    font-feature-settings: "ss01", "cv11";
+    background: #000 !important;
+    color: #fafafa !important;
+    font-family: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-feature-settings: "ss01", "cv11" !important;
 }
-.gradio-container { max-width: 1320px !important; margin: 0 auto !important; padding: 24px !important; }
+.gradio-container { max-width: 1320px !important; margin: 0 auto !important; padding: 28px !important; }
 footer, .gradio-container > footer { display: none !important; }
 
-/* --- hero ---------------------------------------------------------------- */
+/* --- hero ----------------------------------------------------------------- */
 #hero {
-    position: relative;
-    padding: 56px 40px 48px;
-    margin-bottom: 28px;
-    border-radius: 20px;
-    background:
-      radial-gradient(circle at 18% 28%, rgba(99,102,241,0.20) 0%, transparent 55%),
-      radial-gradient(circle at 82% 72%, rgba(236,72,153,0.18) 0%, transparent 55%),
-      linear-gradient(180deg, #11121a 0%, #0c0d14 100%);
-    border: 1px solid rgba(255,255,255,0.07);
-    overflow: hidden;
-}
-#hero::before {
-    content: ''; position: absolute; inset: 0;
-    background: linear-gradient(135deg, transparent 30%, rgba(99,102,241,0.04) 100%);
-    pointer-events: none;
+    padding: 80px 40px 64px;
+    margin-bottom: 36px;
+    border: 1px solid #1a1a1a;
+    background: #000;
 }
 #hero .eyebrow {
-    font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.2em;
-    color: #818cf8; text-transform: uppercase; margin: 0 0 14px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.22em;
+    color: #666; text-transform: uppercase;
+    margin: 0 0 24px 0;
 }
 #hero h1 {
-    color: #fafafa !important; margin: 0 0 12px 0;
-    font-size: 44px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.05;
-    background: linear-gradient(180deg, #ffffff 0%, #a5b4fc 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    font-family: 'Instrument Serif', 'Times New Roman', serif !important;
+    font-style: italic; font-weight: 400;
+    font-size: 96px; line-height: 0.92; letter-spacing: -0.035em;
+    color: #fafafa !important;
+    margin: 0 0 28px 0;
+    background: none !important; -webkit-text-fill-color: #fafafa !important;
 }
-#hero p { color: #a1a1aa !important; margin: 0; font-size: 16px; max-width: 640px; line-height: 1.6; }
+#hero p {
+    font-family: 'Inter Tight', sans-serif !important;
+    font-size: 17px; font-weight: 400;
+    color: #888 !important; margin: 0; max-width: 560px; line-height: 1.55;
+}
 
-/* --- tabs ---------------------------------------------------------------- */
-.tab-nav { background: transparent !important; border: none !important; gap: 4px !important; }
+/* --- tabs (mono pills) --------------------------------------------------- */
+.tab-nav { background: transparent !important; border: none !important; gap: 0 !important; border-bottom: 1px solid #1a1a1a !important; padding-bottom: 0 !important; }
 .tab-nav button {
-    background: transparent !important; color: #71717a !important;
-    border: 1px solid transparent !important; border-radius: 10px !important;
-    padding: 10px 18px !important; font-weight: 500 !important; font-size: 14px !important;
-    transition: all 0.18s ease !important;
+    background: transparent !important; color: #555 !important;
+    border: none !important; border-bottom: 1px solid transparent !important;
+    padding: 18px 24px !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 11px !important; font-weight: 500 !important;
+    letter-spacing: 0.18em !important; text-transform: uppercase !important;
+    transition: all 0.15s ease !important;
 }
-.tab-nav button:hover { color: #d4d4d8 !important; background: rgba(255,255,255,0.03) !important; }
+.tab-nav button:hover { color: #aaa !important; }
 .tab-nav button.selected {
-    color: #ffffff !important;
-    background: rgba(99,102,241,0.12) !important;
-    border-color: rgba(129,140,248,0.30) !important;
+    color: #fafafa !important;
+    border-bottom: 1px solid #fafafa !important;
 }
 
-/* --- cards / blocks ------------------------------------------------------ */
+/* --- cards / blocks (slim outlines, no fills) ---------------------------- */
 .gr-block, .block, .form, .gr-form {
-    background: #11121a !important; border: 1px solid rgba(255,255,255,0.06) !important;
-    border-radius: 14px !important;
+    background: #000 !important;
+    border: 1px solid #1a1a1a !important;
 }
-.tabitem { padding-top: 18px !important; }
+.tabitem { padding-top: 32px !important; }
 
-/* --- inputs -------------------------------------------------------------- */
+/* --- inputs --------------------------------------------------------------- */
 input, textarea, select, .gr-input, .gr-textbox textarea, .gr-dropdown {
-    background: #16172a !important; color: #f4f4f5 !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
-    border-radius: 10px !important; font-family: 'Inter', sans-serif !important;
+    background: #000 !important; color: #fafafa !important;
+    border: 1px solid #2a2a2a !important;
+    font-family: 'Inter Tight', sans-serif !important;
+    font-size: 14px !important; padding: 12px 14px !important;
 }
 input:focus, textarea:focus, .gr-input:focus, .gr-textbox textarea:focus {
-    border-color: #818cf8 !important; box-shadow: 0 0 0 3px rgba(129,140,248,0.15) !important;
-    outline: none !important;
+    border-color: #fafafa !important;
+    outline: none !important; box-shadow: none !important;
 }
-label, .label-wrap span, .gr-form label {
-    color: #d4d4d8 !important; font-weight: 500 !important; font-size: 13px !important;
-    letter-spacing: 0.005em !important;
-}
-.label-wrap, .block-label { background: transparent !important; color: #a1a1aa !important; }
 
-/* --- buttons ------------------------------------------------------------- */
-button.primary, .gr-button-primary {
-    background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%) !important;
-    color: white !important; border: none !important; border-radius: 10px !important;
-    font-weight: 600 !important; letter-spacing: 0.005em !important;
-    padding: 12px 22px !important; font-size: 14px !important;
-    box-shadow: 0 1px 0 rgba(255,255,255,0.10) inset, 0 8px 24px -8px rgba(99,102,241,0.45) !important;
-    transition: all 0.18s ease !important;
+/* --- labels (mono small-caps) -------------------------------------------- */
+label, .label-wrap span, .gr-form label, .block-label {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 10px !important; font-weight: 500 !important;
+    color: #666 !important;
+    text-transform: uppercase !important; letter-spacing: 0.18em !important;
 }
-button.primary:hover, .gr-button-primary:hover {
-    background: linear-gradient(180deg, #7376f6 0%, #5b54f0 100%) !important;
-    box-shadow: 0 1px 0 rgba(255,255,255,0.10) inset, 0 12px 32px -8px rgba(99,102,241,0.65) !important;
-    transform: translateY(-1px);
+
+/* --- buttons (high-contrast invert) -------------------------------------- */
+button.primary, .gr-button-primary, button[variant="primary"] {
+    background: #fafafa !important; color: #000 !important;
+    border: 1px solid #fafafa !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 12px !important; font-weight: 500 !important;
+    letter-spacing: 0.16em !important; text-transform: uppercase !important;
+    padding: 16px 28px !important;
+    box-shadow: none !important;
+    transition: all 0.15s ease !important;
+}
+button.primary:hover, .gr-button-primary:hover, button[variant="primary"]:hover {
+    background: #000 !important; color: #fafafa !important;
+    border: 1px solid #fafafa !important;
 }
 button.secondary, .gr-button-secondary {
-    background: rgba(255,255,255,0.04) !important; color: #d4d4d8 !important;
-    border: 1px solid rgba(255,255,255,0.10) !important; border-radius: 10px !important;
+    background: #000 !important; color: #fafafa !important;
+    border: 1px solid #2a2a2a !important;
+    font-family: 'JetBrains Mono', monospace !important;
 }
 
-/* --- sliders, dropdowns, radios ----------------------------------------- */
-.gr-radio label, .gr-checkbox label { color: #d4d4d8 !important; }
-input[type="range"]::-webkit-slider-thumb { background: #818cf8 !important; }
+/* --- sliders / radios ---------------------------------------------------- */
+.gr-radio label, .gr-checkbox label {
+    color: #aaa !important; font-family: 'Inter Tight', sans-serif !important;
+    font-size: 13px !important; text-transform: none !important; letter-spacing: 0 !important;
+}
+input[type="range"]::-webkit-slider-thumb { background: #fafafa !important; }
+input[type="range"]::-webkit-slider-runnable-track { background: #2a2a2a !important; }
 
 /* --- accordions ---------------------------------------------------------- */
 .gr-accordion {
-    background: rgba(255,255,255,0.02) !important; border: 1px solid rgba(255,255,255,0.06) !important;
-    border-radius: 12px !important;
+    background: #000 !important;
+    border: 1px solid #1a1a1a !important;
 }
 .gr-accordion summary, .gr-accordion .label-wrap {
-    color: #d4d4d8 !important; font-weight: 500 !important;
+    color: #888 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 11px !important; text-transform: uppercase; letter-spacing: 0.18em;
 }
 
 /* --- images -------------------------------------------------------------- */
 .gr-image, .image-container, .gr-image-container {
-    background: #0c0d14 !important; border: 1px solid rgba(255,255,255,0.05) !important;
-    border-radius: 12px !important;
+    background: #000 !important; border: 1px solid #1a1a1a !important;
 }
 
 /* --- markdown ------------------------------------------------------------ */
 .gr-markdown, .prose {
-    color: #d4d4d8 !important;
-    background: transparent !important;
+    color: #aaa !important; background: transparent !important;
+    font-family: 'Inter Tight', sans-serif !important;
 }
-.gr-markdown p { color: #a1a1aa !important; line-height: 1.65; }
+.gr-markdown p { color: #888 !important; font-size: 14px !important; line-height: 1.65 !important; }
 .gr-markdown strong { color: #fafafa !important; font-weight: 600 !important; }
+.gr-markdown em { font-family: 'Instrument Serif', serif !important; font-style: italic; color: #fafafa !important; }
 
-/* --- footer below tabs --------------------------------------------------- */
+/* --- footer -------------------------------------------------------------- */
 .app-footer {
-    text-align: center; padding: 32px 16px 8px;
-    color: #52525b; font-size: 12px; font-family: 'JetBrains Mono', monospace;
-    letter-spacing: 0.05em; text-transform: uppercase;
+    text-align: center; padding: 56px 16px 16px;
+    color: #444; font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.22em; text-transform: uppercase;
 }
+
+/* kill stray gradients & rounded artifacts from third-party widgets */
+* { box-shadow: none !important; }
+.gr-image, button, input, .gr-block, .block { border-radius: 0 !important; }
 """
 
 THEME = gr.themes.Base(
-    primary_hue="indigo",
-    secondary_hue="violet",
+    primary_hue="gray",
+    secondary_hue="gray",
     neutral_hue="zinc",
-    font=("Inter", "ui-sans-serif", "system-ui"),
+    font=("Inter Tight", "ui-sans-serif", "system-ui"),
 ).set(
-    body_background_fill="#0a0b10",
-    body_text_color="#e4e4e7",
-    background_fill_primary="#11121a",
-    background_fill_secondary="#16172a",
-    border_color_primary="rgba(255,255,255,0.06)",
-    block_radius="14px",
-    button_primary_background_fill="*primary_500",
-    button_primary_background_fill_hover="*primary_400",
-    button_primary_text_color="white",
-    block_title_text_color="#d4d4d8",
-    block_label_text_color="#a1a1aa",
+    body_background_fill="#000000",
+    body_text_color="#fafafa",
+    background_fill_primary="#000000",
+    background_fill_secondary="#000000",
+    border_color_primary="#1a1a1a",
+    block_radius="0",
+    input_radius="0",
+    button_large_radius="0",
+    button_small_radius="0",
+    button_primary_background_fill="#fafafa",
+    button_primary_background_fill_hover="#000000",
+    button_primary_text_color="#000000",
+    button_primary_text_color_hover="#fafafa",
+    button_primary_border_color="#fafafa",
+    block_title_text_color="#666666",
+    block_label_text_color="#666666",
 )
 
 
