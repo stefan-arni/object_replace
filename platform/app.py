@@ -250,33 +250,23 @@ CSS = """
 .gradio-container { max-width: 1680px !important; margin: 0 auto !important; padding: 32px 48px !important; }
 footer, .gradio-container > footer { display: none !important; }
 
-/* --- hero ----------------------------------------------------------------- */
-#hero {
-    padding: 96px 56px 88px;
-    margin-bottom: 48px;
-    border: 1px solid #1a1a1a;
-    background: #000;
+/* --- top bar (slim, not a hero) ----------------------------------------- */
+#topbar {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 16px 4px 20px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #1a1a1a;
 }
-#hero .eyebrow {
+#topbar .wordmark {
+    font-family: 'Newsreader', serif !important;
+    font-style: italic; font-weight: 300;
+    font-size: 22px; letter-spacing: -0.01em;
+    color: #fafafa;
+}
+#topbar .meta {
     font-family: 'Geist Mono', monospace;
-    font-size: 11px; letter-spacing: 0.24em;
-    color: #666; text-transform: uppercase;
-    margin: 0 0 36px 0;
-}
-#hero h1 {
-    font-family: 'Newsreader', 'Times New Roman', serif !important;
-    font-style: italic; font-weight: 200;
-    font-size: clamp(72px, 9vw, 160px) !important;
-    line-height: 0.92 !important; letter-spacing: -0.045em !important;
-    color: #fafafa !important;
-    margin: 0 0 40px 0;
-    background: none !important; -webkit-text-fill-color: #fafafa !important;
-    max-width: 1100px;
-}
-#hero p {
-    font-family: 'Geist', sans-serif !important;
-    font-size: 18px; font-weight: 400;
-    color: #888 !important; margin: 0; max-width: 640px; line-height: 1.55;
+    font-size: 10px; letter-spacing: 0.22em;
+    color: #555; text-transform: uppercase;
 }
 
 /* --- tabs (mono pills) --------------------------------------------------- */
@@ -419,10 +409,9 @@ with gr.Blocks(theme=THEME, css=CSS, title="CS5788 — Image Editor 3-in-1") as 
 
     gr.HTML(
         """
-        <div id="hero">
-            <p class="eyebrow">CS 5788  ·  Cornell Tech  ·  Spring 2026</p>
-            <h1>Three ways to&nbsp;rewrite a&nbsp;photograph.</h1>
-            <p>Replace what's in the frame. Move what's in the frame. Repaint what's in the frame. One image, three diffusion models, one workspace.</p>
+        <div id="topbar">
+            <span class="wordmark">Three ways to rewrite a photograph.</span>
+            <span class="meta">CS 5788 / Cornell Tech / Spring 2026</span>
         </div>
         """
     )
