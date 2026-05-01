@@ -233,7 +233,7 @@ def run_style(image, style1, w1, style2, w2, style3, w3,
 # UI
 # ============================================================================
 CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@1,72,200;1,72,300;1,72,400&display=swap');
 
 /* ============================================================
    Editorial brutalism — strict B&W, hard edges, mono labels
@@ -244,37 +244,39 @@ CSS = """
 :root, body, .gradio-container, .dark {
     background: #000 !important;
     color: #fafafa !important;
-    font-family: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif !important;
     font-feature-settings: "ss01", "cv11" !important;
 }
-.gradio-container { max-width: 1320px !important; margin: 0 auto !important; padding: 28px !important; }
+.gradio-container { max-width: 1680px !important; margin: 0 auto !important; padding: 32px 48px !important; }
 footer, .gradio-container > footer { display: none !important; }
 
 /* --- hero ----------------------------------------------------------------- */
 #hero {
-    padding: 80px 40px 64px;
-    margin-bottom: 36px;
+    padding: 96px 56px 88px;
+    margin-bottom: 48px;
     border: 1px solid #1a1a1a;
     background: #000;
 }
 #hero .eyebrow {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; letter-spacing: 0.22em;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px; letter-spacing: 0.24em;
     color: #666; text-transform: uppercase;
-    margin: 0 0 24px 0;
+    margin: 0 0 36px 0;
 }
 #hero h1 {
-    font-family: 'Instrument Serif', 'Times New Roman', serif !important;
-    font-style: italic; font-weight: 400;
-    font-size: 96px; line-height: 0.92; letter-spacing: -0.035em;
+    font-family: 'Newsreader', 'Times New Roman', serif !important;
+    font-style: italic; font-weight: 200;
+    font-size: clamp(72px, 9vw, 160px) !important;
+    line-height: 0.92 !important; letter-spacing: -0.045em !important;
     color: #fafafa !important;
-    margin: 0 0 28px 0;
+    margin: 0 0 40px 0;
     background: none !important; -webkit-text-fill-color: #fafafa !important;
+    max-width: 1100px;
 }
 #hero p {
-    font-family: 'Inter Tight', sans-serif !important;
-    font-size: 17px; font-weight: 400;
-    color: #888 !important; margin: 0; max-width: 560px; line-height: 1.55;
+    font-family: 'Geist', sans-serif !important;
+    font-size: 18px; font-weight: 400;
+    color: #888 !important; margin: 0; max-width: 640px; line-height: 1.55;
 }
 
 /* --- tabs (mono pills) --------------------------------------------------- */
@@ -283,7 +285,7 @@ footer, .gradio-container > footer { display: none !important; }
     background: transparent !important; color: #555 !important;
     border: none !important; border-bottom: 1px solid transparent !important;
     padding: 18px 24px !important;
-    font-family: 'JetBrains Mono', monospace !important;
+    font-family: 'Geist Mono', monospace !important;
     font-size: 11px !important; font-weight: 500 !important;
     letter-spacing: 0.18em !important; text-transform: uppercase !important;
     transition: all 0.15s ease !important;
@@ -305,7 +307,7 @@ footer, .gradio-container > footer { display: none !important; }
 input, textarea, select, .gr-input, .gr-textbox textarea, .gr-dropdown {
     background: #000 !important; color: #fafafa !important;
     border: 1px solid #2a2a2a !important;
-    font-family: 'Inter Tight', sans-serif !important;
+    font-family: 'Geist', sans-serif !important;
     font-size: 14px !important; padding: 12px 14px !important;
 }
 input:focus, textarea:focus, .gr-input:focus, .gr-textbox textarea:focus {
@@ -315,7 +317,7 @@ input:focus, textarea:focus, .gr-input:focus, .gr-textbox textarea:focus {
 
 /* --- labels (mono small-caps) -------------------------------------------- */
 label, .label-wrap span, .gr-form label, .block-label {
-    font-family: 'JetBrains Mono', monospace !important;
+    font-family: 'Geist Mono', monospace !important;
     font-size: 10px !important; font-weight: 500 !important;
     color: #666 !important;
     text-transform: uppercase !important; letter-spacing: 0.18em !important;
@@ -325,7 +327,7 @@ label, .label-wrap span, .gr-form label, .block-label {
 button.primary, .gr-button-primary, button[variant="primary"] {
     background: #fafafa !important; color: #000 !important;
     border: 1px solid #fafafa !important;
-    font-family: 'JetBrains Mono', monospace !important;
+    font-family: 'Geist Mono', monospace !important;
     font-size: 12px !important; font-weight: 500 !important;
     letter-spacing: 0.16em !important; text-transform: uppercase !important;
     padding: 16px 28px !important;
@@ -339,12 +341,12 @@ button.primary:hover, .gr-button-primary:hover, button[variant="primary"]:hover 
 button.secondary, .gr-button-secondary {
     background: #000 !important; color: #fafafa !important;
     border: 1px solid #2a2a2a !important;
-    font-family: 'JetBrains Mono', monospace !important;
+    font-family: 'Geist Mono', monospace !important;
 }
 
 /* --- sliders / radios ---------------------------------------------------- */
 .gr-radio label, .gr-checkbox label {
-    color: #aaa !important; font-family: 'Inter Tight', sans-serif !important;
+    color: #aaa !important; font-family: 'Geist', sans-serif !important;
     font-size: 13px !important; text-transform: none !important; letter-spacing: 0 !important;
 }
 input[type="range"]::-webkit-slider-thumb { background: #fafafa !important; }
@@ -357,7 +359,7 @@ input[type="range"]::-webkit-slider-runnable-track { background: #2a2a2a !import
 }
 .gr-accordion summary, .gr-accordion .label-wrap {
     color: #888 !important;
-    font-family: 'JetBrains Mono', monospace !important;
+    font-family: 'Geist Mono', monospace !important;
     font-size: 11px !important; text-transform: uppercase; letter-spacing: 0.18em;
 }
 
@@ -369,17 +371,17 @@ input[type="range"]::-webkit-slider-runnable-track { background: #2a2a2a !import
 /* --- markdown ------------------------------------------------------------ */
 .gr-markdown, .prose {
     color: #aaa !important; background: transparent !important;
-    font-family: 'Inter Tight', sans-serif !important;
+    font-family: 'Geist', sans-serif !important;
 }
 .gr-markdown p { color: #888 !important; font-size: 14px !important; line-height: 1.65 !important; }
 .gr-markdown strong { color: #fafafa !important; font-weight: 600 !important; }
-.gr-markdown em { font-family: 'Instrument Serif', serif !important; font-style: italic; color: #fafafa !important; }
+.gr-markdown em { font-family: 'Newsreader', serif !important; font-style: italic; color: #fafafa !important; }
 
 /* --- footer -------------------------------------------------------------- */
 .app-footer {
     text-align: center; padding: 56px 16px 16px;
     color: #444; font-size: 10px;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'Geist Mono', monospace;
     letter-spacing: 0.22em; text-transform: uppercase;
 }
 
@@ -418,10 +420,9 @@ with gr.Blocks(theme=THEME, css=CSS, title="CS5788 — Image Editor 3-in-1") as 
     gr.HTML(
         """
         <div id="hero">
-            <p class="eyebrow">CS5788 · Generative Models · Spring 2026</p>
-            <h1>Edit Reality.</h1>
-            <p>Replace, relocate, or restyle any object in a real photograph.
-            Three complementary diffusion pipelines, one interface.</p>
+            <p class="eyebrow">CS 5788  ·  Cornell Tech  ·  Spring 2026</p>
+            <h1>Three ways to&nbsp;rewrite a&nbsp;photograph.</h1>
+            <p>Replace what's in the frame. Move what's in the frame. Repaint what's in the frame. One image, three diffusion models, one workspace.</p>
         </div>
         """
     )
