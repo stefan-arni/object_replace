@@ -20,7 +20,7 @@ from attention_store import (
 )
 from ddim import _alpha_bar
 from inpaint import blended_inpaint, derive_background_prompt
-from inversion import null_text_inversion
+from null_text_inv import null_text_inversion
 from masks import derive_attention_mask, derive_target_mask
 from schedules import ScheduleSet
 from sd_components import SDComponents, decode_latents, encode_prompt

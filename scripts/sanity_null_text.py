@@ -13,7 +13,7 @@ import torch
 from PIL import Image
 
 from ddim import ddim_sample
-from inversion import null_text_inversion, sample_with_null
+from null_text_inv import null_text_inversion, sample_with_null
 from sd_components import decode_latents, encode_prompt, load_sd
 
 PROMPT = "a photograph of a cat sitting on a couch"

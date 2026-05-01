@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from PIL import Image
 
 from editor import _to_pil
-from inversion import null_text_inversion, sample_with_null
+from null_text_inv import null_text_inversion, sample_with_null
 from metrics import reconstruction_lpips
 from sd_components import decode_latents, encode_prompt, load_sd
 
