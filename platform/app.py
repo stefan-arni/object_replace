@@ -61,6 +61,14 @@ def _get_style_pipe():
         # the module-global before loading so we don't have to edit their repo.
         import inference
         inference.MODEL_ID = "stable-diffusion-v1-5/stable-diffusion-v1-5"
+        # Their styles.py uses relative LoRA paths ("output/lora/van_gogh/final").
+        # When the app runs from the project root, those paths don't resolve --
+        # the LoRAs actually live under Picture_Editor_3in1/output/lora/...
+        # Rewrite each entry's lora_dir to an absolute path.
+        import styles
+        pe_root = PROJECT_ROOT / "Picture_Editor_3in1"
+        for key, cfg in styles.STYLES.items():
+            cfg["lora_dir"] = str(pe_root / cfg["lora_dir"])
         _style_pipe = inference.load_pipeline(inference.get_device())
     return _style_pipe
 
